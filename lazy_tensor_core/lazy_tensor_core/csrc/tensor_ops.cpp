@@ -4,6 +4,7 @@
 #include "lazy_tensor_core/csrc/helpers.h"
 #include "lazy_tensor_core/csrc/ir.h"
 #include "lazy_tensor_core/csrc/tensor_aten_op.h"
+#include "lazy_tensor_core/csrc/tensor_distributed.h"
 #include "lazy_tensor_core/csrc/ts_backend/LazyLazyIr.h"
 #include "lazy_tensors/computation_client/debug_macros.h"
 #include "lazy_tensors/computation_client/util.h"
@@ -81,7 +82,7 @@ LazyTensor KlDivBackward(const LazyTensor& grad_output, const LazyTensor& input,
         LazyTensorAtenOp::exp(target), expanded_grad_output));
   }
   if (reduction == ReductionMode::kMean) {
-    LazyTensor dims_size = LazyTensor::get_dimensions_size(
+    LazyTensor dims_size = LazyTensorDistributed::get_dimensions_size(
         input, Helpers::GetAllDimensions(input_shape_ref));
     grad_input = LazyTensorAtenOp::div(grad_input, dims_size);
   }
@@ -184,7 +185,7 @@ LazyTensor SmoothL1LossBackward(const LazyTensor& grad_output,
     case ReductionMode::kSum:
       return LazyTensorAtenOp::mul(elementwise_loss_backward, grad_output);
     case ReductionMode::kMean: {
-      LazyTensor grad_scale = LazyTensor::get_dimensions_size(
+      LazyTensor grad_scale = LazyTensorDistributed::get_dimensions_size(
           broadcasted_input,
           Helpers::GetAllDimensions(broadcasted_input.shape()));
       return LazyTensorAtenOp::mul(

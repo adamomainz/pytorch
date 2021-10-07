@@ -1,3 +1,5 @@
+#include "lazy_tensor_core/csrc/tensor_aten_op.h"
+
 #include <ATen/core/Reduction.h>
 
 #include <algorithm>
@@ -11,8 +13,6 @@
 #include "lazy_tensor_core/csrc/ops/adaptive_avg_pool2d.h"
 #include "lazy_tensor_core/csrc/ops/adaptive_avg_pool3d.h"
 #include "lazy_tensor_core/csrc/ops/all.h"
-#include "lazy_tensor_core/csrc/ops/all_reduce.h"
-#include "lazy_tensor_core/csrc/ops/all_to_all.h"
 #include "lazy_tensor_core/csrc/ops/amax.h"
 #include "lazy_tensor_core/csrc/ops/amin.h"
 #include "lazy_tensor_core/csrc/ops/amp_foreach_non_finite_check_and_unscale.h"
@@ -31,7 +31,6 @@
 #include "lazy_tensor_core/csrc/ops/cast.h"
 #include "lazy_tensor_core/csrc/ops/cat.h"
 #include "lazy_tensor_core/csrc/ops/cholesky.h"
-#include "lazy_tensor_core/csrc/ops/collective_permute.h"
 #include "lazy_tensor_core/csrc/ops/constant.h"
 #include "lazy_tensor_core/csrc/ops/constant_pad_nd.h"
 #include "lazy_tensor_core/csrc/ops/convolution_backward_overrideable.h"
@@ -45,7 +44,6 @@
 #include "lazy_tensor_core/csrc/ops/flip.h"
 #include "lazy_tensor_core/csrc/ops/gather.h"
 #include "lazy_tensor_core/csrc/ops/generic.h"
-#include "lazy_tensor_core/csrc/ops/get_dimensions_size.h"
 #include "lazy_tensor_core/csrc/ops/hardshrink.h"
 #include "lazy_tensor_core/csrc/ops/hardtanh_backward.h"
 #include "lazy_tensor_core/csrc/ops/index_ops.h"
@@ -126,7 +124,6 @@
 #include "lazy_tensor_core/csrc/ops/view.h"
 #include "lazy_tensor_core/csrc/shape_builder.h"
 #include "lazy_tensor_core/csrc/tensor.h"
-#include "lazy_tensor_core/csrc/tensor_aten_op.h"
 #include "lazy_tensor_core/csrc/tensor_ops.h"
 #include "lazy_tensor_core/csrc/tensor_util.h"
 #include "lazy_tensors/computation_client/debug_macros.h"
@@ -137,73 +134,6 @@
 #include "torch/csrc/autograd/variable.h"
 
 namespace torch_lazy_tensors {
-
-//////////////////////////////////////////////////////////////////////////////
-// Special operators follows here, listed in alphabetical order.
-//////////////////////////////////////////////////////////////////////////////
-std::pair<LazyTensor, ir::Value> LazyTensor::all_reduce(
-    const LazyTensor& input, const ir::Value& token, AllReduceType reduce_type,
-    double scale, std::vector<std::vector<lazy_tensors::int64>> groups) {
-  std::vector<ir::Value> input_values({input.GetIrValue()});
-  ir::NodePtr node = ir::MakeNode<ir::ops::AllReduce>(
-      reduce_type, input_values, token, scale, std::move(groups));
-  return {input.CreateFrom(ir::Value(node, 0)), ir::Value(node, 1)};
-}
-
-ir::Value LazyTensor::all_reduce_(
-    LazyTensor& input, const ir::Value& token, AllReduceType reduce_type,
-    double scale, std::vector<std::vector<lazy_tensors::int64>> groups) {
-  std::vector<ir::Value> input_values({input.GetIrValue()});
-  ir::NodePtr node = ir::MakeNode<ir::ops::AllReduce>(
-      reduce_type, input_values, token, scale, std::move(groups));
-  input.SetInPlaceIrValue(ir::Value(node, 0));
-  return ir::Value(node, 1);
-}
-
-ir::Value LazyTensor::all_reduce(
-    std::vector<LazyTensor>* inputs, const ir::Value& token,
-    AllReduceType reduce_type, double scale,
-    std::vector<std::vector<lazy_tensors::int64>> groups) {
-  std::vector<ir::Value> input_values;
-  input_values.reserve(inputs->size());
-  for (auto& input : *inputs) {
-    input_values.push_back(input.GetIrValue());
-  }
-  ir::NodePtr node = ir::MakeNode<ir::ops::AllReduce>(
-      reduce_type, input_values, token, scale, std::move(groups));
-  for (size_t i = 0; i < inputs->size(); ++i) {
-    (*inputs)[i].SetInPlaceIrValue(ir::Value(node, i));
-  }
-  return ir::Value(node, inputs->size());
-}
-
-std::pair<LazyTensor, ir::Value> LazyTensor::all_to_all(
-    const LazyTensor& input, const ir::Value& token,
-    lazy_tensors::int64 split_dimension, lazy_tensors::int64 concat_dimension,
-    lazy_tensors::int64 split_count,
-    std::vector<std::vector<lazy_tensors::int64>> groups) {
-  ir::NodePtr node = ir::MakeNode<ir::ops::AllToAll>(
-      input.GetIrValue(), token, split_dimension, concat_dimension, split_count,
-      std::move(groups));
-  return {input.CreateFrom(ir::Value(node, 0)), ir::Value(node, 1)};
-}
-
-LazyTensor LazyTensor::get_dimensions_size(
-    const LazyTensor& input, std::vector<lazy_tensors::int64> dimensions) {
-  return input.CreateFrom(ir::MakeNode<ir::ops::GetDimensionsSize>(
-                              input.GetIrValue(), std::move(dimensions)),
-                          at::ScalarType::Int);
-}
-
-std::pair<LazyTensor, ir::Value> LazyTensor::collective_permute(
-    const LazyTensor& input, const ir::Value& token,
-    std::vector<std::pair<lazy_tensors::int64, lazy_tensors::int64>>
-        source_target_pairs) {
-  ir::NodePtr node = ir::MakeNode<ir::ops::CollectivePermute>(
-      input.GetIrValue(), token, std::move(source_target_pairs));
-  return {input.CreateFrom(ir::Value(node, 0)), ir::Value(node, 1)};
-}
-
 namespace LazyTensorAtenOp {
 namespace {
 
@@ -1848,11 +1778,11 @@ LazyTensor neg(const LazyTensor& input) {
 std::tuple<LazyTensor, LazyTensor> nll_loss_forward(
     const LazyTensor& input, const LazyTensor& target, const LazyTensor& weight,
     lazy_tensors::int64 reduction, int ignore_index) {
-  auto node = ir::MakeNode<ir::ops::NllLossForward>(input.GetIrValue(),
-      target.GetIrValue(), GetOptionalIrValue(weight),
+  auto node = ir::MakeNode<ir::ops::NllLossForward>(
+      input.GetIrValue(), target.GetIrValue(), GetOptionalIrValue(weight),
       GetReductionMode(reduction), ignore_index);
   return std::make_tuple(input.CreateFrom(ir::Value(node, 0)),
-      input.CreateFrom(ir::Value(node, 1)));
+                         input.CreateFrom(ir::Value(node, 1)));
 }
 
 LazyTensor nll_loss2d(const LazyTensor& input, const LazyTensor& target,
@@ -2005,8 +1935,7 @@ std::tuple<LazyTensor, LazyTensor> qr(const LazyTensor& input, bool some) {
 }
 
 void random_(LazyTensor& input) {
-  input.SetInPlaceIrValue(
-      ir::MakeNode<ir::ops::Random>(input.GetIrValue()));
+  input.SetInPlaceIrValue(ir::MakeNode<ir::ops::Random>(input.GetIrValue()));
 }
 
 LazyTensor reciprocal(const LazyTensor& input) {
