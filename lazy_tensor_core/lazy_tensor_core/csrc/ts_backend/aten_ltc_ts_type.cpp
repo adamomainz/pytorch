@@ -7,6 +7,7 @@
 #include "lazy_tensor_core/csrc/function_call_tracker.h"
 #include "lazy_tensor_core/csrc/helpers.h"
 #include "lazy_tensor_core/csrc/ops/as_strided.h"
+#include "lazy_tensor_core/csrc/tensor_aten_op.h"
 #include "lazy_tensor_core/csrc/tensor_impl.h"
 #include "lazy_tensor_core/csrc/tensor_util.h"
 #include "lazy_tensor_core/csrc/torch_util.h"
@@ -81,7 +82,7 @@ at::Tensor LazyNativeFunctions::add(const at::Tensor& self,
   return DoBinaryOp(self, other,
                     [&](const LazyTensor& xself, const LazyTensor& xother,
                         at::ScalarType dtype) {
-                      return LazyTensor::add(xself, xother, alpha, dtype);
+                      return LazyTensorAtenOp::add(xself, xother, alpha, dtype);
                     });
 }
 
@@ -91,8 +92,8 @@ at::Tensor& LazyNativeFunctions::addcdiv_(at::Tensor& self,
                                          const at::Scalar& value) {
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::addcdiv_(self_tensor, value, bridge::GetLtcTensor(tensor1),
-                      bridge::GetLtcTensor(tensor2));
+  LazyTensorAtenOp::addcdiv_(self_tensor, value, bridge::GetLtcTensor(tensor1),
+                             bridge::GetLtcTensor(tensor2));
   return self;
 }
 
@@ -112,9 +113,9 @@ at::Tensor LazyNativeFunctions::addmm(const at::Tensor& self,
                                                               beta, alpha);
   }
   return bridge::AtenFromLtcTensor(
-      LazyTensor::addmm(bridge::GetLtcTensor(mat1),
-                        /*weight=*/bridge::GetLtcTensor(mat2),
-                        /*bias=*/bridge::GetLtcTensor(self)));
+      LazyTensorAtenOp::addmm(bridge::GetLtcTensor(mat1),
+                              /*weight=*/bridge::GetLtcTensor(mat2),
+                              /*bias=*/bridge::GetLtcTensor(self)));
 }
 
 at::Tensor LazyNativeFunctions::alias(const at::Tensor& self) {
@@ -135,9 +136,9 @@ at::Tensor LazyNativeFunctions::as_strided(
         &ltc_eager_fallback, ATEN_OP(as_strided)>::call(self, size, stride,
                                                         storage_offset);
   }
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::as_strided(self_tensor, std::move(xsize), std::move(xstride),
-                             Helpers::I64Optional(storage_offset)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::as_strided(
+      self_tensor, std::move(xsize), std::move(xstride),
+      Helpers::I64Optional(storage_offset)));
 }
 
 const at::Tensor& LazyNativeFunctions::as_strided_(
@@ -153,8 +154,9 @@ const at::Tensor& LazyNativeFunctions::as_strided_(
         &ltc_eager_fallback, ATEN_OP(as_strided_)>::call(self, size, stride,
                                                          storage_offset);
   }
-  LazyTensor::as_strided_(self_tensor, std::move(xsize), std::move(xstride),
-                          Helpers::I64Optional(storage_offset));
+  LazyTensorAtenOp::as_strided_(self_tensor, std::move(xsize),
+                                std::move(xstride),
+                                Helpers::I64Optional(storage_offset));
   return self;
 }
 
@@ -167,7 +169,7 @@ at::Tensor LazyNativeFunctions::bernoulli(
                                                                   generator);
   }
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  return bridge::AtenFromLtcTensor(LazyTensor::bernoulli(self_tensor));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::bernoulli(self_tensor));
 }
 
 at::Tensor& LazyNativeFunctions::bernoulli_(
@@ -179,7 +181,7 @@ at::Tensor& LazyNativeFunctions::bernoulli_(
                                                                 generator);
   }
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::bernoulli_(self_tensor, p);
+  LazyTensorAtenOp::bernoulli_(self_tensor, p);
   return self;
 }
 
@@ -192,21 +194,21 @@ at::Tensor LazyNativeFunctions::bmm(const at::Tensor& self,
     return at::native::call_fallback_fn<&ltc_eager_fallback,
                                         ATEN_OP(bmm)>::call(self, mat2);
   }
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::bmm(bridge::GetLtcTensor(self), bridge::GetLtcTensor(mat2)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::bmm(
+      bridge::GetLtcTensor(self), bridge::GetLtcTensor(mat2)));
 }
 
 at::Tensor LazyNativeFunctions::cat(at::TensorList tensors, int64_t dim) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::cat(bridge::GetLtcTensors(tensors), dim));
+      LazyTensorAtenOp::cat(bridge::GetLtcTensors(tensors), dim));
 }
 
 at::Tensor LazyNativeFunctions::constant_pad_nd(const at::Tensor& self,
                                                 at::IntArrayRef pad,
                                                 const at::Scalar& value) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::constant_pad_nd(
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::constant_pad_nd(
       bridge::GetLtcTensor(self), Helpers::I64List(pad), value));
 }
 
@@ -221,7 +223,7 @@ LazyNativeFunctions::convolution_backward_overrideable(
       lazy_tensors::compiler::TSComputationClient::HardwareDeviceType() ==
           at::kCUDA) {
     LTC_FN_COUNTER("lazy::");
-    auto result = LazyTensor::convolution_backward_overrideable(
+    auto result = LazyTensorAtenOp::convolution_backward_overrideable(
         bridge::GetLtcTensor(grad_output), bridge::GetLtcTensor(input),
         bridge::GetLtcTensor(weight), Helpers::I64List(stride),
         Helpers::I64List(padding), Helpers::I64List(dilation), transposed,
@@ -316,16 +318,19 @@ at::Tensor LazyNativeFunctions::convolution_overrideable(
     at::IntArrayRef output_padding, int64_t groups) {
   LTC_FN_COUNTER("lazy::");
   return (bias && bias->defined())
-             ? bridge::AtenFromLtcTensor(LazyTensor::convolution_overrideable(
-                   bridge::GetLtcTensor(input), bridge::GetLtcTensor(weight),
-                   bridge::GetLtcTensor(*bias), Helpers::I64List(stride),
-                   Helpers::I64List(padding), Helpers::I64List(dilation),
-                   transposed, Helpers::I64List(output_padding), groups))
-             : bridge::AtenFromLtcTensor(LazyTensor::convolution_overrideable(
-                   bridge::GetLtcTensor(input), bridge::GetLtcTensor(weight),
-                   Helpers::I64List(stride), Helpers::I64List(padding),
-                   Helpers::I64List(dilation), transposed,
-                   Helpers::I64List(output_padding), groups));
+             ? bridge::AtenFromLtcTensor(
+                   LazyTensorAtenOp::convolution_overrideable(
+                       bridge::GetLtcTensor(input),
+                       bridge::GetLtcTensor(weight),
+                       bridge::GetLtcTensor(*bias), Helpers::I64List(stride),
+                       Helpers::I64List(padding), Helpers::I64List(dilation),
+                       transposed, Helpers::I64List(output_padding), groups))
+             : bridge::AtenFromLtcTensor(
+                   LazyTensorAtenOp::convolution_overrideable(
+                       bridge::GetLtcTensor(input),
+                       bridge::GetLtcTensor(weight), Helpers::I64List(stride),
+                       Helpers::I64List(padding), Helpers::I64List(dilation),
+                       transposed, Helpers::I64List(output_padding), groups));
 }
 
 at::Tensor LazyNativeFunctions::_copy_from(const at::Tensor& self,
@@ -355,7 +360,7 @@ at::Tensor LazyNativeFunctions::_copy_from(const at::Tensor& self,
         dst_tensor_data->copy_(self_tensor->ToTensor(/*detached=*/true));
       }
     } else {
-      LazyTensor::copy_(*dst_tensor, *self_tensor);
+      LazyTensorAtenOp::copy_(*dst_tensor, *self_tensor);
       bridge::ReplaceLtcTensor(dst, *dst_tensor);
     }
   }
@@ -397,24 +402,25 @@ at::Tensor LazyNativeFunctions::div(
   LTC_FN_COUNTER("lazy::");
   at::ScalarType dtype = at::result_type(self, other);
   auto operands = GetBinaryOperands(self, other);
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::div(operands.first, operands.second, rounding_mode, dtype));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::div(
+      operands.first, operands.second, rounding_mode, dtype));
 }
 
 at::Tensor LazyNativeFunctions::div(const at::Tensor& self,
                                     const at::Scalar& other) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::div(bridge::GetLtcTensor(self), other));
+      LazyTensorAtenOp::div(bridge::GetLtcTensor(self), other));
 }
 
 at::Tensor LazyNativeFunctions::embedding_dense_backward(
     const at::Tensor& grad_output, const at::Tensor& indices,
     int64_t num_weights, int64_t padding_idx, bool scale_grad_by_freq) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::ts_embedding_dense_backward(
-      bridge::GetLtcTensor(grad_output), bridge::GetLtcTensor(indices),
-      num_weights, padding_idx, scale_grad_by_freq));
+  return bridge::AtenFromLtcTensor(
+      LazyTensorAtenOp::ts_embedding_dense_backward(
+          bridge::GetLtcTensor(grad_output), bridge::GetLtcTensor(indices),
+          num_weights, padding_idx, scale_grad_by_freq));
 }
 
 at::Tensor LazyNativeFunctions::empty(
@@ -447,20 +453,20 @@ at::Tensor LazyNativeFunctions::eq(const at::Tensor& self,
                                    const at::Scalar& other) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::eq(bridge::GetLtcTensor(self), other));
+      LazyTensorAtenOp::eq(bridge::GetLtcTensor(self), other));
 }
 
 at::Tensor LazyNativeFunctions::eq(const at::Tensor& self,
                                    const at::Tensor& other) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::eq(bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::eq(
+      bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
 }
 
 at::Tensor LazyNativeFunctions::expand(const at::Tensor& self,
                                        at::IntArrayRef size, bool implicit) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::expand(
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::expand(
       bridge::GetLtcTensor(self),
       lazy_tensors::util::ToVector<lazy_tensors::int64>(size)));
 }
@@ -468,7 +474,7 @@ at::Tensor LazyNativeFunctions::expand(const at::Tensor& self,
 at::Tensor& LazyNativeFunctions::fill_(at::Tensor & self, const at::Scalar & value) {
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::fill_(self_tensor, value);
+  LazyTensorAtenOp::fill_(self_tensor, value);
   return self;
 }
 
@@ -476,35 +482,35 @@ at::Tensor LazyNativeFunctions::ge(const at::Tensor& self,
                                    const at::Scalar& other) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::ge(bridge::GetLtcTensor(self), other));
+      LazyTensorAtenOp::ge(bridge::GetLtcTensor(self), other));
 }
 
 at::Tensor LazyNativeFunctions::ge(const at::Tensor& self,
                                    const at::Tensor& other) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::ge(bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::ge(
+      bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
 }
 
 at::Tensor LazyNativeFunctions::gt(const at::Tensor& self,
                                    const at::Scalar& other) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::gt(bridge::GetLtcTensor(self), other));
+      LazyTensorAtenOp::gt(bridge::GetLtcTensor(self), other));
 }
 
 at::Tensor LazyNativeFunctions::gt(const at::Tensor& self,
                                    const at::Tensor& other) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::gt(bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::gt(
+      bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
 }
 
 at::Tensor LazyNativeFunctions::index_select(const at::Tensor& self,
                                              int64_t dim,
                                              const at::Tensor& index) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::index_select(
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::index_select(
       bridge::GetLtcTensor(self), dim, bridge::GetLtcTensor(index)));
 }
 
@@ -512,21 +518,21 @@ at::Tensor LazyNativeFunctions::le(const at::Tensor& self,
                                    const at::Scalar& other) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::le(bridge::GetLtcTensor(self), other));
+      LazyTensorAtenOp::le(bridge::GetLtcTensor(self), other));
 }
 
 at::Tensor LazyNativeFunctions::le(const at::Tensor& self,
                                    const at::Tensor& other) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::le(bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::le(
+      bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
 }
 
 at::Tensor LazyNativeFunctions::leaky_relu(const at::Tensor& self,
                                            const at::Scalar& negative_slope) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::leaky_relu(bridge::GetLtcTensor(self), negative_slope.toDouble()));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::leaky_relu(
+      bridge::GetLtcTensor(self), negative_slope.toDouble()));
 }
 
 at::Tensor LazyNativeFunctions::leaky_relu_backward(const at::Tensor& grad_output,
@@ -534,23 +540,23 @@ at::Tensor LazyNativeFunctions::leaky_relu_backward(const at::Tensor& grad_outpu
                                                     const at::Scalar& negative_slope,
                                                     bool self_is_result) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::leaky_relu_backward(bridge::GetLtcTensor(grad_output),
-      bridge::GetLtcTensor(input), negative_slope.toDouble(), self_is_result));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::leaky_relu_backward(
+      bridge::GetLtcTensor(grad_output), bridge::GetLtcTensor(input),
+      negative_slope.toDouble(), self_is_result));
 }
 
 at::Tensor LazyNativeFunctions::lt(const at::Tensor& self,
                                    const at::Scalar& other) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::lt(bridge::GetLtcTensor(self), other));
+      LazyTensorAtenOp::lt(bridge::GetLtcTensor(self), other));
 }
 
 at::Tensor LazyNativeFunctions::lt(const at::Tensor& self,
                                    const at::Tensor& other) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::lt(bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::lt(
+      bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
 }
 
 at::Tensor LazyNativeFunctions::max_pool2d(
@@ -573,7 +579,7 @@ at::Tensor LazyNativeFunctions::mul(const at::Tensor& self,
   return DoBinaryOp(self, other,
                     [&](const LazyTensor& xself, const LazyTensor& xother,
                         at::ScalarType dtype) {
-                      return LazyTensor::mul(xself, xother, dtype);
+                      return LazyTensorAtenOp::mul(xself, xother, dtype);
                     });
 }
 
@@ -583,7 +589,7 @@ at::Tensor LazyNativeFunctions::mul(const at::Tensor& self,
   return DoBinaryOp(self, other,
                     [&](const LazyTensor& xself, const at::Scalar& other,
                         at::ScalarType dtype) {
-                      return LazyTensor::mul(xself, other, dtype);
+                      return LazyTensorAtenOp::mul(xself, other, dtype);
                     });
 }
 
@@ -601,7 +607,7 @@ LazyNativeFunctions::native_batch_norm(
       bridge::GetOrCreateLtcTensor(running_mean, device);
   LazyTensor running_var_tensor =
       bridge::GetOrCreateLtcTensor(running_var, device);
-  auto outputs = LazyTensor::ts_native_batch_norm(
+  auto outputs = LazyTensorAtenOp::ts_native_batch_norm(
       bridge::GetLtcTensor(input), bridge::GetOrCreateLtcTensor(weight, device),
       bridge::GetOrCreateLtcTensor(bias, device), running_mean_tensor,
       running_var_tensor, training, momentum, eps);
@@ -625,7 +631,7 @@ LazyNativeFunctions::native_batch_norm_backward(
   LazyTensor null_tensor;
   bool running_stats = running_mean && running_mean->defined();
   LTC_CHECK_EQ(running_var && running_var->defined(), running_stats);
-  auto gradients = LazyTensor::ts_native_batch_norm_backward(
+  auto gradients = LazyTensorAtenOp::ts_native_batch_norm_backward(
       bridge::GetLtcTensor(grad_out), bridge::GetLtcTensor(input),
       bridge::GetOrCreateLtcTensor(weight, device),
       running_stats ? bridge::GetOrCreateLtcTensor(running_mean, device)
@@ -649,14 +655,14 @@ at::Tensor LazyNativeFunctions::ne(const at::Tensor& self,
                                    const at::Scalar& other) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::ne(bridge::GetLtcTensor(self), other));
+      LazyTensorAtenOp::ne(bridge::GetLtcTensor(self), other));
 }
 
 at::Tensor LazyNativeFunctions::ne(const at::Tensor& self,
                                    const at::Tensor& other) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::ne(bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::ne(
+      bridge::GetLtcTensor(self), bridge::GetLtcTensor(other)));
 }
 
 at::Tensor LazyNativeFunctions::nll_loss_backward(const at::Tensor& grad_output,
@@ -667,11 +673,11 @@ at::Tensor LazyNativeFunctions::nll_loss_backward(const at::Tensor& grad_output,
   LTC_FN_COUNTER("lazy::");
 
   auto selfTensor = bridge::GetLtcTensor(self);
-  return bridge::AtenFromLtcTensor(
-      LazyTensor::nll_loss_backward(bridge::GetLtcTensor(grad_output), selfTensor,
-          bridge::GetLtcTensor(target), bridge::GetOrCreateLtcTensor(weight,
-              selfTensor.GetDevice()),
-          reduction, ignore_index, bridge::GetLtcTensor(total_weight)));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::nll_loss_backward(
+      bridge::GetLtcTensor(grad_output), selfTensor,
+      bridge::GetLtcTensor(target),
+      bridge::GetOrCreateLtcTensor(weight, selfTensor.GetDevice()), reduction,
+      ignore_index, bridge::GetLtcTensor(total_weight)));
 }
 
 std::tuple<at::Tensor,at::Tensor>
@@ -682,10 +688,10 @@ LazyNativeFunctions::nll_loss_forward(const at::Tensor& self,
   LTC_FN_COUNTER("lazy::");
 
   auto selfTensor = bridge::GetLtcTensor(self);
-  auto lazyOutputs = LazyTensor::nll_loss_forward(
+  auto lazyOutputs = LazyTensorAtenOp::nll_loss_forward(
       selfTensor, bridge::GetLtcTensor(target),
-      bridge::GetOrCreateLtcTensor(weight, selfTensor.GetDevice()),
-      reduction, ignore_index);
+      bridge::GetOrCreateLtcTensor(weight, selfTensor.GetDevice()), reduction,
+      ignore_index);
 
   return std::make_tuple(
       bridge::AtenFromLtcTensor(std::get<0>(lazyOutputs)),
@@ -751,7 +757,7 @@ at::Tensor LazyNativeFunctions::permute(const at::Tensor& self,
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
   return bridge::AtenFromLtcTensor(
-      LazyTensor::permute(self_tensor, Helpers::I64List(dims)));
+      LazyTensorAtenOp::permute(self_tensor, Helpers::I64List(dims)));
 }
 
 at::Tensor& LazyNativeFunctions::random_(at::Tensor& self,
@@ -764,27 +770,27 @@ at::Tensor& LazyNativeFunctions::random_(at::Tensor& self,
   }
 
   auto selfTensor = bridge::GetLtcTensor(self);
-  LazyTensor::random_(selfTensor);
+  LazyTensorAtenOp::random_(selfTensor);
   return self;
 }
 
 at::Tensor LazyNativeFunctions::relu(const at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::relu(bridge::GetLtcTensor(self)));
+      LazyTensorAtenOp::relu(bridge::GetLtcTensor(self)));
 }
 
 at::Tensor& LazyNativeFunctions::relu_(at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::relu_(self_tensor);
+  LazyTensorAtenOp::relu_(self_tensor);
   return self;
 }
 
 at::Tensor LazyNativeFunctions::repeat(const at::Tensor& self,
                                        at::IntArrayRef repeats) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::repeat(
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::repeat(
       bridge::GetLtcTensor(self), Helpers::I64List(repeats)));
 }
 
@@ -792,7 +798,7 @@ at::Tensor LazyNativeFunctions::select(const at::Tensor& self, int64_t dim,
                                        int64_t index) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::select(bridge::GetLtcTensor(self), dim, index));
+      LazyTensorAtenOp::select(bridge::GetLtcTensor(self), dim, index));
 }
 
 at::Tensor LazyNativeFunctions::slice(const at::Tensor& self, int64_t dim,
@@ -802,45 +808,45 @@ at::Tensor LazyNativeFunctions::slice(const at::Tensor& self, int64_t dim,
   int64_t start_val = start.has_value() ? start.value() : 0;
   int64_t end_val = end.has_value() ? end.value() : INT64_MAX;
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::slice(
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::slice(
       bridge::GetLtcTensor(self), dim, start_val, end_val, step));
 }
 
 at::Tensor LazyNativeFunctions::stack(at::TensorList tensors, int64_t dim) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::stack(bridge::GetLtcTensors(tensors), dim));
+      LazyTensorAtenOp::stack(bridge::GetLtcTensors(tensors), dim));
 }
 
 at::Tensor LazyNativeFunctions::sqrt(const at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::sqrt(bridge::GetLtcTensor(self)));
+      LazyTensorAtenOp::sqrt(bridge::GetLtcTensor(self)));
 }
 
 at::Tensor LazyNativeFunctions::squeeze(const at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::squeeze(bridge::GetLtcTensor(self)));
+      LazyTensorAtenOp::squeeze(bridge::GetLtcTensor(self)));
 }
 
 at::Tensor LazyNativeFunctions::squeeze(const at::Tensor& self, int64_t dim) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::squeeze(bridge::GetLtcTensor(self), dim));
+      LazyTensorAtenOp::squeeze(bridge::GetLtcTensor(self), dim));
 }
 
 at::Tensor& LazyNativeFunctions::squeeze_(at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::squeeze_(self_tensor);
+  LazyTensorAtenOp::squeeze_(self_tensor);
   return self;
 }
 
 at::Tensor& LazyNativeFunctions::squeeze_(at::Tensor& self, int64_t dim) {
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::squeeze_(self_tensor, dim);
+  LazyTensorAtenOp::squeeze_(self_tensor, dim);
   return self;
 }
 
@@ -853,7 +859,7 @@ at::Tensor LazyNativeFunctions::sub(const at::Tensor& self,
   return DoBinaryOp(self, other,
                     [&](const LazyTensor& xself, const LazyTensor& xother,
                         at::ScalarType dtype) {
-                      return LazyTensor::sub(xself, xother, alpha, dtype);
+                      return LazyTensorAtenOp::sub(xself, xother, alpha, dtype);
                     });
 }
 
@@ -865,7 +871,7 @@ at::Tensor LazyNativeFunctions::sub(const at::Tensor& self,
   return DoBinaryOp(self, other,
                     [&](const LazyTensor& xself, const at::Scalar& other,
                         at::ScalarType dtype) {
-                      return LazyTensor::sub(xself, other, alpha, dtype);
+                      return LazyTensorAtenOp::sub(xself, other, alpha, dtype);
                     });
 }
 
@@ -874,17 +880,17 @@ at::Tensor LazyNativeFunctions::sum(const at::Tensor& self,
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
   return bridge::AtenFromLtcTensor(
-      LazyTensor::sum(self_tensor,
-                      lazy_tensors::util::Iota<lazy_tensors::int64>(
-                          self_tensor.shape().get().rank()),
-                      /*keep_reduced_dimensions=*/false, dtype));
+      LazyTensorAtenOp::sum(self_tensor,
+                            lazy_tensors::util::Iota<lazy_tensors::int64>(
+                                self_tensor.shape().get().rank()),
+                            /*keep_reduced_dimensions=*/false, dtype));
 }
 
 at::Tensor LazyNativeFunctions::sum(const at::Tensor& self, at::IntArrayRef dim,
                                     bool keepdim,
                                     c10::optional<at::ScalarType> dtype) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::sum(
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::sum(
       bridge::GetLtcTensor(self),
       lazy_tensors::util::ToVector<lazy_tensors::int64>(dim), keepdim, dtype));
 }
@@ -892,26 +898,26 @@ at::Tensor LazyNativeFunctions::sum(const at::Tensor& self, at::IntArrayRef dim,
 at::Tensor LazyNativeFunctions::t(const at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::transpose(bridge::GetLtcTensor(self), 0, 1));
+      LazyTensorAtenOp::transpose(bridge::GetLtcTensor(self), 0, 1));
 }
 
 at::Tensor& LazyNativeFunctions::t_(at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::transpose_(self_tensor, 0, 1);
+  LazyTensorAtenOp::transpose_(self_tensor, 0, 1);
   return self;
 }
 
 at::Tensor LazyNativeFunctions::tanh(const at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::tanh(bridge::GetLtcTensor(self)));
+      LazyTensorAtenOp::tanh(bridge::GetLtcTensor(self)));
 }
 
 at::Tensor LazyNativeFunctions::tanh_backward(const at::Tensor& grad_output,
                                               const at::Tensor& output) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::tanh_backward(
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::tanh_backward(
       bridge::GetLtcTensor(grad_output), bridge::GetLtcTensor(output)));
 }
 
@@ -919,7 +925,7 @@ at::Tensor LazyNativeFunctions::threshold(const at::Tensor& self,
                                           const at::Scalar& threshold,
                                           const at::Scalar& value) {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::threshold(
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::threshold(
       bridge::GetLtcTensor(self), threshold.to<double>(), value.to<double>()));
 }
 
@@ -927,35 +933,36 @@ at::Tensor LazyNativeFunctions::threshold_backward(const at::Tensor& grad_output
     const at::Tensor& self, const at::Scalar& threshold)
 {
   LTC_FN_COUNTER("lazy::");
-  return bridge::AtenFromLtcTensor(LazyTensor::threshold_backward(
-      bridge::GetLtcTensor(grad_output), bridge::GetLtcTensor(self), threshold.to<double>()));
+  return bridge::AtenFromLtcTensor(LazyTensorAtenOp::threshold_backward(
+      bridge::GetLtcTensor(grad_output), bridge::GetLtcTensor(self),
+      threshold.to<double>()));
 }
 
 at::Tensor LazyNativeFunctions::transpose(const at::Tensor& self, int64_t dim0,
                                           int64_t dim1) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::transpose(bridge::GetLtcTensor(self), dim0, dim1));
+      LazyTensorAtenOp::transpose(bridge::GetLtcTensor(self), dim0, dim1));
 }
 
 at::Tensor& LazyNativeFunctions::transpose_(at::Tensor& self, int64_t dim0,
                                             int64_t dim1) {
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::transpose_(self_tensor, dim0, dim1);
+  LazyTensorAtenOp::transpose_(self_tensor, dim0, dim1);
   return self;
 }
 
 at::Tensor LazyNativeFunctions::unsqueeze(const at::Tensor& self, int64_t dim) {
   LTC_FN_COUNTER("lazy::");
   return bridge::AtenFromLtcTensor(
-      LazyTensor::unsqueeze(bridge::GetLtcTensor(self), dim));
+      LazyTensorAtenOp::unsqueeze(bridge::GetLtcTensor(self), dim));
 }
 
 at::Tensor& LazyNativeFunctions::unsqueeze_(at::Tensor& self, int64_t dim) {
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
-  LazyTensor::unsqueeze_(self_tensor, dim);
+  LazyTensorAtenOp::unsqueeze_(self_tensor, dim);
   return self;
 }
 
@@ -964,13 +971,13 @@ at::Tensor LazyNativeFunctions::view(const at::Tensor& self,
   LTC_FN_COUNTER("lazy::");
   LazyTensor self_tensor = bridge::GetLtcTensor(self);
   return bridge::AtenFromLtcTensor(
-      LazyTensor::view(self_tensor, Helpers::I64List(size)));
+      LazyTensorAtenOp::view(self_tensor, Helpers::I64List(size)));
 }
 
 at::Tensor& LazyNativeFunctions::zero_(at::Tensor& self) {
   LTC_FN_COUNTER("lazy::");
   auto selfTensor = bridge::GetLtcTensor(self);
-  LazyTensor::zero_(selfTensor);
+  LazyTensorAtenOp::zero_(selfTensor);
   return self;
 }
 
