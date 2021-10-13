@@ -160,14 +160,13 @@ class Node {
   // Creates a new node with the given op name. The op is a unique identifier
   // for the operation. The num_outputs tells how many outputs a given operation
   // generates.
-  Node(OpKind op, OpList operands, const std::vector<at::ScalarType>& at_dtypes,
+  Node(OpKind op, const std::vector<at::ScalarType>& at_dtypes,
        const std::vector<std::vector<int64_t>>& at_shapes, size_t num_outputs,
        lazy_tensors::hash_t node_hash, lazy_tensors::hash_t dag_hash);
 
   // Contructor used to create leaf nodes.
   Node(OpKind op, const std::vector<at::ScalarType>& at_dtypes,
-       const std::vector<std::vector<int64_t>>& at_shapes,
-       size_t num_outputs,
+       const std::vector<std::vector<int64_t>>& at_shapes, size_t num_outputs,
        lazy_tensors::hash_t node_hash);
 
   virtual ~Node();
@@ -176,9 +175,9 @@ class Node {
 
   size_t num_outputs() const { return num_outputs_; }
 
-  const std::vector<Output>& operands() const { return operands_as_outputs_; }
+  virtual const std::vector<Output>& operands() const = 0;
 
-  const Output& operand(size_t i) const { return operands_as_outputs_.at(i); }
+  virtual const Output& operand(size_t i) const = 0;
 
   lazy_tensors::hash_t node_hash() const { return node_hash_; }
 
@@ -204,19 +203,12 @@ class Node {
   }
 
  private:
-  // Adds node's index output number as operand.
-  void AddOperand(NodePtr node, size_t index = 0);
-
   static std::vector<SourceLocation> GetFrameInfo();
 
   // The ID of the operation captured by this node.
   OpKind op_;
   size_t num_outputs_ = 1;
-  // A node holds a real reference to its operands.
-  std::vector<NodePtr> operands_;
-  // Outputs do not hold references on the nodes, and neither do the uses, since
-  // otherwise we get into circular reference counting.
-  std::vector<Output> operands_as_outputs_;
+
   // The hash value of this node.
   lazy_tensors::hash_t node_hash_ = 0;
   // The hash value of the graph rooted at this node.
