@@ -23,7 +23,7 @@ NodePtr ArgMax::Clone(OpList operands) const {
 
 std::string ArgMax::ToString() const {
   std::stringstream ss;
-  ss << Node::ToString() << ", dim=" << dim_ << ", keepdim=" << keepdim_;
+  ss << TsNode::ToString() << ", dim=" << dim_ << ", keepdim=" << keepdim_;
   return ss.str();
 }
 
